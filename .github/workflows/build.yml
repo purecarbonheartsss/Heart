@@ -2,19 +2,32 @@ name: Build Carbon Heart
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build --config Release
-    - name: Upload EXE
-      uses: actions/upload-artifact@v4
-      with:
-        name: CarbonHeart-EXE
-        path: ${{github.workspace}}/build/Release/*.exe
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload UI Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: CarbonHeart-UI
+          path: build/Release/CarbonHeart.exe
+          if-no-files-found: error
+
+      - name: Upload Injector Test Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: HeartInjector-Test
+          path: build/Release/HeartInjector.exe
+          if-no-files-found: error
