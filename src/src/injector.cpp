@@ -1,6 +1,6 @@
 #include <windows.h>
 #include <tlhelp32.h>
-#include <iostream>
+#include <string>
 
 // Function to find the Roblox PID using a process snapshot.
 DWORD GetRobloxPID() {
@@ -25,9 +25,7 @@ DWORD GetRobloxPID() {
 
 // Safely opens a handle to the Roblox process.
 // The key here is using PROCESS_ALL_ACCESS - 0x1 to remove PROCESS_TERMINATE.
-// This makes the handle look less suspicious to Hyperion's handle introspection.
 HANDLE OpenRobloxProcessSafely(DWORD pid) {
     // PROCESS_ALL_ACCESS - 0x1 removes PROCESS_TERMINATE (0x0001)
-    // This is a deliberate technique to avoid the anti-cheat flagging the handle.
     return OpenProcess(PROCESS_ALL_ACCESS - 0x1, FALSE, pid);
 }
