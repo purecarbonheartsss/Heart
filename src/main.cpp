@@ -13,7 +13,7 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
-// --- Forward declarations for injector functions (we'll implement these in injector.cpp) ---
+// Forward declarations for injector functions (implemented in injector.cpp)
 DWORD GetRobloxPID();
 HANDLE OpenRobloxProcessSafely(DWORD pid);
 
@@ -191,12 +191,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
                 ImGui::Separator();
                 ImGui::TextUnformatted("Console Output:");
                 
-                // Draw the console log
                 ImGui::BeginChild("Console", ImVec2(0.0f, 300.0f), true);
                 for (const auto& log : g_consoleLog) {
                     ImGui::TextUnformatted(log.c_str());
                 }
-                // Auto-scroll to bottom
                 if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
                     ImGui::SetScrollHereY(1.0f);
                 }
@@ -242,7 +240,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
     return 0;
 }
 
-// ... (WndProc, CreateDeviceD3D, and other boilerplate functions remain the same as your original) ...
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui::GetCurrentContext() != nullptr && ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) return 1;
