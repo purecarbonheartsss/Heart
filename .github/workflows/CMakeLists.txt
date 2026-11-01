@@ -3,12 +3,13 @@ project(CarbonHeart)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Fetch ImGui automatically so you don't have to download it manually
+# Fetch ImGui automatically
 include(FetchContent)
 FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG v1.90.1
+    GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(imgui)
 
@@ -29,8 +30,8 @@ target_include_directories(CarbonHeart PRIVATE
     ${imgui_SOURCE_DIR}/backends
 )
 
-# Link Windows libraries (DirectX 11, DWM for transparency)
-target_link_libraries(CarbonHeart PRIVATE d3d11 dxgi dwmapi)
+# Link Windows libraries (DirectX 11, DWM for transparency, d3dcompiler for ImGui)
+target_link_libraries(CarbonHeart PRIVATE d3d11 dxgi dwmapi d3dcompiler)
 
 # Hide the console window for a clean UI look
 set_target_properties(CarbonHeart PROPERTIES WIN32_EXECUTABLE TRUE)
