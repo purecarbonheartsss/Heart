@@ -1,7 +1,3 @@
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#define WINVER 0x0A00
-#define _WIN32_WINNT 0x0A00
 
 #include <windows.h>
 #include <d3d11.h>
@@ -13,9 +9,8 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
-// Forward declarations for injector functions (implemented in injector.cpp)
-DWORD GetRobloxPID();
-HANDLE OpenRobloxProcessSafely(DWORD pid);
+// Returns the PID of the Roblox client if it is running; does not open or modify it.
+#include "process_info.h"
 
 // Direct3D 11 objects.
 static ID3D11Device*            g_pd3dDevice = nullptr;
@@ -172,29 +167,24 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
             {
                 ImGui::TextUnformatted("Status");
                 ImGui::SameLine();
-                if (ImGui::Button("Connect to Roblox", ImVec2(150, 30))) {
-                    DWORD pid = GetRobloxPID();
+                if (ImGui::Button("Find Roblox", ImVec2(150, 30))) {
+                    const DWORD pid = GetRobloxPID();
                     if (pid != 0) {
                         LogToConsole("Found Roblox PID: " + std::to_string(pid));
-                        HANDLE hProc = OpenRobloxProcessSafely(pid);
-                        if (hProc != NULL) {
-                            LogToConsole("✅ SUCCESS: Safely attached to Roblox process.");
-                            CloseHandle(hProc); // Close handle for now until injection is ready
-                        } else {
-                            LogToConsole("❌ ERROR: Could not open process handle.");
-                        }
                     } else {
-                        LogToConsole("❌ ERROR: Roblox is not running.");
+                        LogToConsole("Roblox is not running.");
                     }
                 }
 
                 ImGui::Separator();
                 ImGui::TextUnformatted("Console Output:");
                 
+                // Draw the console log
                 ImGui::BeginChild("Console", ImVec2(0.0f, 300.0f), true);
                 for (const auto& log : g_consoleLog) {
                     ImGui::TextUnformatted(log.c_str());
                 }
+                // Auto-scroll to bottom
                 if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
                     ImGui::SetScrollHereY(1.0f);
                 }
@@ -240,6 +230,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
     return 0;
 }
 
+// ... (WndProc, CreateDeviceD3D, and other boilerplate functions remain the same as your original) ...
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui::GetCurrentContext() != nullptr && ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) return 1;
