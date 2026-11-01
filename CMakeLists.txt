@@ -5,8 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
-
-# Fetch Dear ImGui
 FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -15,9 +13,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
-# UI Executable
+# --- External UI Executable ---
 add_executable(CarbonHeart WIN32
     src/main.cpp
+    src/injector.cpp
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
     ${imgui_SOURCE_DIR}/imgui_tables.cpp
@@ -29,6 +28,7 @@ add_executable(CarbonHeart WIN32
 target_include_directories(CarbonHeart PRIVATE
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
+    src
 )
 
 target_compile_definitions(CarbonHeart PRIVATE
@@ -39,6 +39,23 @@ target_link_libraries(CarbonHeart PRIVATE
     d3d11 dxgi d3dcompiler dwmapi user32 gdi32 imm32
 )
 
-# Injector Executable (Console app for testing PID attachment)
-add_executable(HeartInjector src/injector.cpp)
-target_compile_definitions(HeartInjector PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+# --- Internal Execution DLL ---
+add_library(CarbonHeartDLL SHARED
+    dll/dllmain.cpp
+    dll/execution.cpp
+    dll/hooks.cpp
+    dll/communication.cpp
+)
+
+target_include_directories(CarbonHeartDLL PRIVATE
+    dll
+    src
+)
+
+target_compile_definitions(CarbonHeartDLL PRIVATE
+    WIN32_LEAN_AND_MEAN NOMINMAX
+)
+
+target_link_libraries(CarbonHeartDLL PRIVATE
+    ws2_32 # For TCP communication
+)
