@@ -1,18 +1,19 @@
-#pragma once
-#include <cstdint>
+cmake_minimum_required(VERSION 3.20)
+project(Heart LANGUAGES CXX)
 
-namespace Offsets {
-    // Hyperion / Byfron Bypass
-    constexpr uint64_t HyperionBase = 0x0; 
-    
-    // Luau VM Hooks
-    constexpr uint64_t LuaPCallK = 0x00123456; 
-    constexpr uint64_t LuaCallK = 0x00789ABC;  
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-    // Thread Identity (Crucial for bypassing detection)
-    constexpr uint64_t ThreadIdentityOffset = 0x1C0; 
-    constexpr uint64_t TrustedIdentity = 0x303FFFFFFFFFFFFF; 
+# Include directories for all targets
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-    // Script Context
-    constexpr uint64_t ScriptContext = 0x3F0;
-}
+# Injector executable
+add_executable(Heart src/main.cpp)
+
+# DLL target
+add_library(dll SHARED
+    dll/dllmain.cpp
+    dll/hooks.cpp
+    dll/pipe_server.cpp
+)
+target_link_libraries(dll PRIVATE mincore)
