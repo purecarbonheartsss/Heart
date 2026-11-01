@@ -1,0 +1,20 @@
+name: Build Carbon Heart
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config Release
+    - name: Upload EXE
+      uses: actions/upload-artifact@v4
+      with:
+        name: CarbonHeart-EXE
+        path: ${{github.workspace}}/build/Release/*.exe
