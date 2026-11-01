@@ -6,10 +6,16 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <dwmapi.h>
+#include <string>
+#include <vector>
 
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+
+// --- Forward declarations for injector functions (we'll implement these in injector.cpp) ---
+DWORD GetRobloxPID();
+HANDLE OpenRobloxProcessSafely(DWORD pid);
 
 // Direct3D 11 objects.
 static ID3D11Device*            g_pd3dDevice = nullptr;
@@ -19,6 +25,7 @@ static ID3D11RenderTargetView*  g_mainRenderTargetView = nullptr;
 
 // UI state.
 static bool g_topMost = false;
+static std::vector<std::string> g_consoleLog;
 
 // Forward declarations.
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
@@ -62,9 +69,13 @@ void ApplyCarbonHeartTheme()
     colors[ImGuiCol_ScrollbarGrab]  = ImVec4(0.30f, 0.30f, 0.35f, 1.00f);
 }
 
+// Helper to add a message to the on-screen console
+void LogToConsole(const std::string& message) {
+    g_consoleLog.push_back(message);
+}
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
 {
-    // Register the application window class.
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
     wc.style = CS_CLASSDC;
@@ -78,17 +89,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         return 1;
     }
 
-    // Create a borderless window.
-    HWND hwnd = ::CreateWindowExW(
-        0,
-        wc.lpszClassName,
-        L"Carbon Heart",
-        WS_POPUP,
-        100, 100, 800, 500,
-        nullptr,
-        nullptr,
-        hInstance,
-        nullptr);
+    HWND hwnd = ::CreateWindowExW(0, wc.lpszClassName, L"Carbon Heart", WS_POPUP, 100, 100, 800, 500, nullptr, nullptr, hInstance, nullptr);
 
     if (hwnd == nullptr)
     {
@@ -97,13 +98,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         return 1;
     }
 
-    // Request rounded corners on supported Windows 11 versions.
     const DWM_WINDOW_CORNER_PREFERENCE cornerPreference = DWMWCP_ROUND;
-    (void)::DwmSetWindowAttribute(
-        hwnd,
-        DWMWA_WINDOW_CORNER_PREFERENCE,
-        &cornerPreference,
-        sizeof(cornerPreference));
+    (void)::DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &cornerPreference, sizeof(cornerPreference));
 
     if (!CreateDeviceD3D(hwnd))
     {
@@ -117,7 +113,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
     ::ShowWindow(hwnd, nCmdShow);
     ::UpdateWindow(hwnd);
 
-    // Initialise Dear ImGui.
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -130,9 +125,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
 
     if (!win32InitOk || !dx11InitOk)
     {
-        if (win32InitOk)
-            ImGui_ImplWin32_Shutdown();
-
+        if (win32InitOk) ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
         CleanupDeviceD3D();
         ::DestroyWindow(hwnd);
@@ -141,7 +134,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         return 1;
     }
 
-    // Main application loop.
+    LogToConsole("> Carbon Heart ready.");
+
     bool done = false;
     while (!done)
     {
@@ -150,51 +144,67 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         {
             ::TranslateMessage(&msg);
             ::DispatchMessageW(&msg);
-
-            if (msg.message == WM_QUIT)
-                done = true;
+            if (msg.message == WM_QUIT) done = true;
         }
-
-        if (done)
-            break;
+        if (done) break;
 
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        // Main UI window.
         ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_Always);
 
         const ImGuiWindowFlags windowFlags =
-            ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoCollapse;
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
 
         ImGui::Begin("CarbonHeart_Main", nullptr, windowFlags);
 
         ImGui::TextColored(ImVec4(0.70f, 0.70f, 0.75f, 1.0f), "CARBON HEART");
         ImGui::SameLine(ImGui::GetWindowWidth() - 40.0f);
-
-        if (ImGui::Button("X", ImVec2(25.0f, 25.0f)))
-            done = true;
-
+        if (ImGui::Button("X", ImVec2(25.0f, 25.0f))) done = true;
         ImGui::Separator();
 
         if (ImGui::BeginTabBar("MainTabs"))
         {
             if (ImGui::BeginTabItem("Executor"))
             {
+                ImGui::TextUnformatted("Status");
+                ImGui::SameLine();
+                if (ImGui::Button("Connect to Roblox", ImVec2(150, 30))) {
+                    DWORD pid = GetRobloxPID();
+                    if (pid != 0) {
+                        LogToConsole("Found Roblox PID: " + std::to_string(pid));
+                        HANDLE hProc = OpenRobloxProcessSafely(pid);
+                        if (hProc != NULL) {
+                            LogToConsole("✅ SUCCESS: Safely attached to Roblox process.");
+                            CloseHandle(hProc); // Close handle for now until injection is ready
+                        } else {
+                            LogToConsole("❌ ERROR: Could not open process handle.");
+                        }
+                    } else {
+                        LogToConsole("❌ ERROR: Roblox is not running.");
+                    }
+                }
+
+                ImGui::Separator();
                 ImGui::TextUnformatted("Console Output:");
+                
+                // Draw the console log
                 ImGui::BeginChild("Console", ImVec2(0.0f, 300.0f), true);
-                ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "Awaiting PID Attachment...");
-                ImGui::TextUnformatted("> Ready.");
+                for (const auto& log : g_consoleLog) {
+                    ImGui::TextUnformatted(log.c_str());
+                }
+                // Auto-scroll to bottom
+                if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
+                    ImGui::SetScrollHereY(1.0f);
+                }
                 ImGui::EndChild();
 
-                ImGui::Button("Execute", ImVec2(100.0f, 30.0f));
-                ImGui::SameLine();
-                ImGui::Button("Clear", ImVec2(100.0f, 30.0f));
+                if (ImGui::Button("Clear Log", ImVec2(100.0f, 30.0f))) {
+                    g_consoleLog.clear();
+                }
 
                 ImGui::EndTabItem();
             }
@@ -202,16 +212,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
             if (ImGui::BeginTabItem("Settings"))
             {
                 ImGui::TextUnformatted("UI Theme: Carbon Heart (Silver/Black Chrome)");
-
-                if (ImGui::Checkbox("Top Most", &g_topMost))
-                {
-                    ::SetWindowPos(
-                        hwnd,
-                        g_topMost ? HWND_TOPMOST : HWND_NOTOPMOST,
-                        0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                if (ImGui::Checkbox("Top Most", &g_topMost)) {
+                    ::SetWindowPos(hwnd, g_topMost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 }
-
                 ImGui::EndTabItem();
             }
 
@@ -220,9 +223,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
 
         ImGui::End();
 
-        // Render the frame.
         ImGui::Render();
-
         const float clearColor[4] = { 0.02f, 0.02f, 0.03f, 1.00f };
         g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, nullptr);
         g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clearColor);
@@ -230,7 +231,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         g_pSwapChain->Present(1, 0);
     }
 
-    // Shutdown and release resources.
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
@@ -242,48 +242,32 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
     return 0;
 }
 
+// ... (WndProc, CreateDeviceD3D, and other boilerplate functions remain the same as your original) ...
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    if (ImGui::GetCurrentContext() != nullptr &&
-        ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
-    {
-        return 1;
-    }
-
+    if (ImGui::GetCurrentContext() != nullptr && ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) return 1;
     switch (msg)
     {
     case WM_SIZE:
         if (g_pd3dDevice != nullptr && g_pSwapChain != nullptr && wParam != SIZE_MINIMIZED)
         {
             CleanupRenderTarget();
-
             const UINT width = static_cast<UINT>(LOWORD(lParam));
             const UINT height = static_cast<UINT>(HIWORD(lParam));
-
             if (width > 0 && height > 0)
             {
-                const HRESULT resizeResult = g_pSwapChain->ResizeBuffers(
-                    0, width, height, DXGI_FORMAT_UNKNOWN, 0);
-
-                if (SUCCEEDED(resizeResult))
-                    (void)CreateRenderTarget();
+                const HRESULT resizeResult = g_pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+                if (SUCCEEDED(resizeResult)) (void)CreateRenderTarget();
             }
         }
         return 0;
-
     case WM_SYSCOMMAND:
-        if ((wParam & 0xFFF0) == SC_KEYMENU)
-            return 0;
+        if ((wParam & 0xFFF0) == SC_KEYMENU) return 0;
         break;
-
     case WM_DESTROY:
         ::PostQuitMessage(0);
         return 0;
-
-    default:
-        break;
     }
-
     return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
@@ -304,81 +288,34 @@ bool CreateDeviceD3D(HWND hWnd)
     sd.Windowed = TRUE;
     sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
-    const D3D_FEATURE_LEVEL featureLevels[] =
-    {
-        D3D_FEATURE_LEVEL_11_0,
-        D3D_FEATURE_LEVEL_10_0
-    };
-
+    const D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0 };
     D3D_FEATURE_LEVEL featureLevel{};
 
-    const HRESULT result = D3D11CreateDeviceAndSwapChain(
-        nullptr,
-        D3D_DRIVER_TYPE_HARDWARE,
-        nullptr,
-        0,
-        featureLevels,
-        static_cast<UINT>(sizeof(featureLevels) / sizeof(featureLevels[0])),
-        D3D11_SDK_VERSION,
-        &sd,
-        &g_pSwapChain,
-        &g_pd3dDevice,
-        &featureLevel,
-        &g_pd3dDeviceContext);
-
-    if (FAILED(result))
-        return false;
-
+    const HRESULT result = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, featureLevels, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
+    if (FAILED(result)) return false;
     return CreateRenderTarget();
 }
 
 void CleanupDeviceD3D()
 {
     CleanupRenderTarget();
-
-    if (g_pSwapChain != nullptr)
-    {
-        g_pSwapChain->Release();
-        g_pSwapChain = nullptr;
-    }
-
-    if (g_pd3dDeviceContext != nullptr)
-    {
-        g_pd3dDeviceContext->Release();
-        g_pd3dDeviceContext = nullptr;
-    }
-
-    if (g_pd3dDevice != nullptr)
-    {
-        g_pd3dDevice->Release();
-        g_pd3dDevice = nullptr;
-    }
+    if (g_pSwapChain != nullptr) { g_pSwapChain->Release(); g_pSwapChain = nullptr; }
+    if (g_pd3dDeviceContext != nullptr) { g_pd3dDeviceContext->Release(); g_pd3dDeviceContext = nullptr; }
+    if (g_pd3dDevice != nullptr) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
 }
 
 bool CreateRenderTarget()
 {
-    if (g_pSwapChain == nullptr || g_pd3dDevice == nullptr)
-        return false;
-
+    if (g_pSwapChain == nullptr || g_pd3dDevice == nullptr) return false;
     ID3D11Texture2D* backBuffer = nullptr;
-    const HRESULT getBufferResult = g_pSwapChain->GetBuffer(
-        0, IID_PPV_ARGS(&backBuffer));
-
-    if (FAILED(getBufferResult) || backBuffer == nullptr)
-        return false;
-
-    const HRESULT createViewResult = g_pd3dDevice->CreateRenderTargetView(
-        backBuffer, nullptr, &g_mainRenderTargetView);
-
+    const HRESULT getBufferResult = g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+    if (FAILED(getBufferResult) || backBuffer == nullptr) return false;
+    const HRESULT createViewResult = g_pd3dDevice->CreateRenderTargetView(backBuffer, nullptr, &g_mainRenderTargetView);
     backBuffer->Release();
     return SUCCEEDED(createViewResult);
 }
 
 void CleanupRenderTarget()
 {
-    if (g_mainRenderTargetView != nullptr)
-    {
-        g_mainRenderTargetView->Release();
-        g_mainRenderTargetView = nullptr;
-    }
+    if (g_mainRenderTargetView != nullptr) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = nullptr; }
 }
